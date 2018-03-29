@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,34 +10,38 @@ namespace Homework2ProducerConsumer
 {
     class Assembly
     {
-        public static Semaphore semaphore = new Semaphore(1, 1);
+        public static Semaphore semaphore = new Semaphore(3, 3);
 
-        public static ConcurrentBag<int> bag = new ConcurrentBag<int>();
-
-        public static int number = 0;
+        private static AssemblyLine al;
 
         public static object modifyList = new object();
+
+        public Assembly()
+        {
+            al = new AssemblyLine(10);
+        }
 
         public static void consumer(int consumerNumber) {
             while (true)
             {
                 semaphore.WaitOne();
 
-                if (bag.IsEmpty)
+                if (al.isEmpty())
                 {
                     semaphore.Release();
                     continue;
                 }
 
-                int takenNumber;
-
                 lock (modifyList)
                 {
-                    Interlocked.Decrement(ref number);
+                    if (al.isEmpty())
+                    {
+                        semaphore.Release();
+                        continue;
+                    }
 
-                    bag.TryTake(out takenNumber);
+                    al.consume(consumerNumber);
 
-                    Console.WriteLine("Consumer number " + consumerNumber + " has taken element " + takenNumber);
                 }
                 semaphore.Release();
 
@@ -48,7 +52,7 @@ namespace Homework2ProducerConsumer
             while (true)
             {
                 semaphore.WaitOne();
-                if (bag.Count >= 10)
+                if (al.isThereRoomLeft() == false)
                 {
                     semaphore.Release();
                     continue;
@@ -56,11 +60,12 @@ namespace Homework2ProducerConsumer
 
                 lock (modifyList)
                 {
-                    Interlocked.Increment(ref number);
-
-                    bag.Add(number);
-
-                    Console.WriteLine("Producer number " + producerNumber + " has produced element " + number);
+                    if(al.isThereRoomLeft() == false)
+                    {
+                        semaphore.Release();
+                        continue;
+                    }
+                    al.addOne(producerNumber);
                 }
                 semaphore.Release();
             }
@@ -90,6 +95,42 @@ namespace Homework2ProducerConsumer
             {
                 threads[i].Join();
             }
+
+        }
+
+        class AssemblyLine
+        {
+            int currentNumberOfObjects, totalNumberOfObjects;
+
+            public AssemblyLine(int totalObjects)
+            {
+                totalNumberOfObjects = totalObjects;
+                currentNumberOfObjects = 0;
+            }
+
+            public void addOne(int producerN)
+            {
+                currentNumberOfObjects++;
+                Console.WriteLine("Producer " + producerN+" produced item " + currentNumberOfObjects);
+            }
+
+            public void consume(int consumerN)
+            {
+                Console.WriteLine("Consumer " + consumerN + " consumed item " + currentNumberOfObjects);
+                currentNumberOfObjects--;
+            }
+
+            public bool isThereRoomLeft()
+            {
+                return currentNumberOfObjects < totalNumberOfObjects;
+            }
+
+            public bool isEmpty()
+            {
+                if (currentNumberOfObjects == 0) return true;
+                return false;
+            }
+
 
         }
     }
